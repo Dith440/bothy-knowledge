@@ -1,0 +1,6 @@
+# Who must approve changes. Every pull request needs a maintainer's review.
+*                 @Dith440
+
+# Medical protocols also need a medical reviewer: add their GitHub names here (qualified people only),
+# and turn on "Require review from Code Owners" for the main branch.
+/packs/medical/   @Dith440

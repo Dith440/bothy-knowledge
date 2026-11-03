@@ -1,0 +1,39 @@
+{
+ "format": "bothy-pack/1",
+ "kind": "knowledge",
+ "id": "bothy-starter",
+ "title": {
+  "en": "Bothy starter guides",
+  "de": "Bothy-Startanleitungen"
+ },
+ "description": {
+  "en": "A first example guide, to show what a pack looks like.",
+  "de": "Eine erste Beispielanleitung, die zeigt, wie ein Paket aussieht."
+ },
+ "version": "0.1.0",
+ "licence": "CC BY-SA 4.0",
+ "authors": [
+  "Bothy contributors"
+ ],
+ "private": false,
+ "content": {
+  "schemaVersion": 13,
+  "release": "bothy-starter",
+  "generated": "2026-11-03",
+  "publishedCategoryIds": [
+   "water"
+  ]
+ },
+ "contentOrder": [
+  "schemaVersion",
+  "release",
+  "generated",
+  "publishedCategoryIds",
+  "sources",
+  "verificationSources",
+  "categories"
+ ],
+ "categoryOrder": [
+  "water"
+ ]
+}

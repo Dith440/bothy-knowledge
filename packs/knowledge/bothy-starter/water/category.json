@@ -1,0 +1,26 @@
+{
+ "id": "water",
+ "intro": {
+  "en": "",
+  "de": ""
+ },
+ "sections": {
+  "purification": {
+   "description": {
+    "en": "Make water safe to drink.",
+    "de": "Wasser trinkbar machen."
+   }
+  }
+ },
+ "fieldOrder": [
+  "id",
+  "intro",
+  "sections",
+  "guides",
+  "lexicon",
+  "references"
+ ],
+ "guideOrder": [
+  "boil-water"
+ ]
+}

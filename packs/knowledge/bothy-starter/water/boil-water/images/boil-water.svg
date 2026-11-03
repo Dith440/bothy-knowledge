@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 320" role="img">
+  <rect width="480" height="320" fill="#0d1b1e"/>
+  <g fill="none" stroke="#9fd8cf" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M130 120 h220 v110 a20 20 0 0 1 -20 20 h-180 a20 20 0 0 1 -20 -20 z"/>
+    <path d="M110 120 h260"/>
+    <path d="M130 140 h-22 M350 140 h22"/>
+  </g>
+  <g fill="#9fd8cf" opacity="0.55">
+    <circle cx="180" cy="200" r="9"/><circle cx="215" cy="175" r="12"/><circle cx="255" cy="205" r="8"/>
+    <circle cx="290" cy="170" r="11"/><circle cx="235" cy="145" r="7"/><circle cx="310" cy="210" r="7"/>
+  </g>
+  <g fill="none" stroke="#9fd8cf" stroke-width="4" stroke-linecap="round" opacity="0.7">
+    <path d="M190 100 q-12 -18 0 -36 q12 -18 0 -36"/>
+    <path d="M240 100 q-12 -18 0 -36 q12 -18 0 -36"/>
+    <path d="M290 100 q-12 -18 0 -36 q12 -18 0 -36"/>
+  </g>
+  <g fill="#e8a33c">
+    <path d="M175 300 q-12 -26 8 -42 q-2 18 12 24 q4 -22 20 -30 q-4 24 14 34 q10 -12 8 -26 q20 18 8 40 z"/>
+    <path d="M255 300 q-12 -26 8 -42 q-2 18 12 24 q4 -22 20 -30 q-4 24 14 34 q10 -12 8 -26 q20 18 8 40 z"/>
+  </g>
+</svg>

@@ -1,0 +1,14 @@
+{
+ "sources": [],
+ "verificationSources": [
+  {
+   "id": "cdc-safe-water",
+   "title": {
+    "en": "How to Make Water Safe in an Emergency",
+    "de": "How to Make Water Safe in an Emergency"
+   },
+   "publisher": "U.S. Centers for Disease Control and Prevention (CDC)",
+   "url": "https://www.cdc.gov/water-emergency/about/index.html"
+  }
+ ]
+}

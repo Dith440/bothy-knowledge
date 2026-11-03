@@ -1,0 +1,14 @@
+Bothy community knowledge
+
+The guides, protocols and pictures in packs/ are licensed under the Creative Commons
+Attribution-ShareAlike 4.0 International licence (CC BY-SA 4.0), unless a picture's .json
+file names another open licence (CC BY 4.0, CC0 1.0 or public domain).
+
+  Summary:    https://creativecommons.org/licenses/by-sa/4.0/
+  Legal code: https://creativecommons.org/licenses/by-sa/4.0/legalcode
+
+You may share and adapt them for any purpose, including commercially, as long as you give
+credit (the authors in each pack.json and picture .json) and share your changes under the
+same licence.
+
+The tools in tools/ are licensed under the GNU General Public License v3.0, like Bothy.

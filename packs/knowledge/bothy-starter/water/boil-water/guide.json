@@ -1,0 +1,53 @@
+{
+ "id": "boil-water",
+ "fieldOrder": [
+  "id",
+  "sectionId",
+  "title",
+  "summary",
+  "outcome",
+  "time",
+  "level",
+  "risk",
+  "figures",
+  "tools",
+  "warning",
+  "steps",
+  "checks",
+  "mistakes",
+  "sourceRefs",
+  "externalRefs",
+  "keywords"
+ ],
+ "sectionId": "purification",
+ "risk": "caution",
+ "figures": [
+  {
+   "src": "boil-water.svg",
+   "kind": "original-diagram",
+   "file": "images/boil-water.svg",
+   "fieldOrder": [
+    "src",
+    "alt",
+    "kind"
+   ]
+  }
+ ],
+ "sourceRefs": [],
+ "externalRefs": [
+  {
+   "sourceId": "cdc-safe-water",
+   "fieldOrder": [
+    "sourceId",
+    "note"
+   ]
+  }
+ ],
+ "commands": [],
+ "actions": [],
+ "keywordsForm": "languages",
+ "warningOrder": [
+  "title",
+  "text"
+ ]
+}
