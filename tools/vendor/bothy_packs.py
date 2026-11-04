@@ -25,6 +25,7 @@ import shutil
 
 FORMAT = "bothy-pack/1"
 CATEGORY_IMAGES = "_images"  # can't clash with a guide folder: ids start with a letter or digit
+PACK_FILES = "_files"         # documents (PDFs) the pack's sources point to, each with a .json like pictures
 IMAGE_URL = re.compile(r"^/[^\s\"]+\.(?:png|jpe?g|webp|svg|gif)$", re.I)
 LANGS = ("en", "de")
 SLUG = re.compile(r"^[a-z0-9][a-z0-9-]*$")
@@ -33,10 +34,12 @@ SLUG = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 HEADINGS = {
     "en": {"figures": "Figures", "tools": "You need", "steps": "Steps", "checks": "Check",
            "mistakes": "Common mistakes", "sourceRefs": "Source notes", "externalRefs": "Further reading",
-           "parameters": "Parameters", "commands": "Commands", "actions": "Actions", "warning": "Warning"},
+           "parameters": "Parameters", "commands": "Commands", "actions": "Actions", "warning": "Warning",
+           "notes": "Notes"},
     "de": {"figures": "Abbildungen", "tools": "Du brauchst", "steps": "Schritte", "checks": "Prüfen",
            "mistakes": "Häufige Fehler", "sourceRefs": "Quellenhinweise", "externalRefs": "Weiterführend",
-           "parameters": "Parameter", "commands": "Befehle", "actions": "Aktionen", "warning": "Warnung"},
+           "parameters": "Parameter", "commands": "Befehle", "actions": "Aktionen", "warning": "Warnung",
+           "notes": "Notizen"},
 }
 HEADING_KEY = {title: key for lang in HEADINGS.values() for key, title in lang.items()}
 FRONT_FIELDS = ("title", "summary", "outcome", "time", "level")
@@ -64,12 +67,28 @@ def _one_line(text, where):
     return text
 
 
+def _lines(text, where):
+    """A text that may have several lines (a step's text, an own section's text, the warning): its lines, each
+    trimmed and none empty, so that each can sit on a line of its own in the Markdown."""
+    lines = text.split("\n")
+    if len(lines) > 1 and any(not line.strip() or line != line.strip() for line in lines):
+        raise PackError(f"{where}: a text's lines can't be empty or start or end with spaces")
+    return [_one_line(lines[0], where)] + lines[1:]
+
+
+def _item_with_lines(first, text, where):
+    """'N. **Title** first line' and the text's further lines indented under it (Markdown list continuation)."""
+    lines = _lines(text, where)
+    head = f"{first} {lines[0]}" if lines[0] else first
+    return [head] + [f"   {line}" for line in lines[1:]]
+
+
 # Guide <-> files ---------------------------------------------------------------------------------------------
 
 def guide_to_files(guide, image_name):
     """Split one guide into (guide.json structure, {lang: markdown}). image_name maps a figure src to a file name."""
     structure = {"id": guide["id"], "fieldOrder": list(guide)}
-    for key in ("sectionId", "categoryId", "risk"):
+    for key in ("sectionId", "categoryId", "risk", "layout"):  # layout: the order and width of the page's modules
         if key in guide:
             structure[key] = guide[key]
     structure["figures"] = []
@@ -112,7 +131,8 @@ def guide_to_files(guide, image_name):
         lines.append("---")
         if "warning" in guide:
             w = guide["warning"]
-            lines += ["", f"> **{h['warning']}: {_one_line(w['title'][lang], where)}**", f"> {_one_line(w['text'][lang], where)}"]
+            lines += ["", f"> **{h['warning']}: {_one_line(w['title'][lang], where)}**"]
+            lines += [f"> {line}" for line in _lines(w["text"][lang], where)]
 
         def section(key, items):
             if items:
@@ -124,8 +144,10 @@ def guide_to_files(guide, image_name):
             figs += [f"   - {_one_line(x[lang], where)}" for x in fig.get("legend", [])]
         section("figures", figs)
         section("tools", [f"- {_one_line(t[lang], where)}" for t in guide.get("tools", [])])
-        section("steps", [f"{i}. **{_one_line(s['title'][lang], where)}** {_one_line(s['body'][lang], where)}"
-                          for i, s in enumerate(guide.get("steps", []), 1)])
+        section("steps", [line for i, s in enumerate(guide.get("steps", []), 1)
+                          for line in _item_with_lines(f"{i}. **{_one_line(s['title'][lang], where)}**", s["body"][lang], where)])
+        section("notes", [line for i, n in enumerate(guide.get("notes", []), 1)
+                          for line in _item_with_lines(f"{i}. **{_one_line(n['title'][lang], where)}**", n["text"][lang], where)])
         section("checks", [f"- {_one_line(t[lang], where)}" for t in guide.get("checks", [])])
         section("mistakes", [f"- {_one_line(t[lang], where)}" for t in guide.get("mistakes", [])])
         section("sourceRefs", [f"{i}. {_one_line(r['note'][lang], where)}" for i, r in enumerate(guide.get("sourceRefs", []), 1)])
@@ -182,6 +204,20 @@ def _numbered(lines):
     return items
 
 
+def _numbered_text(lines):
+    """[text] from a numbered list whose items may go on over indented lines (steps, own sections)."""
+    items = []
+    for line in lines:
+        m = re.match(r"^\d+\. (.*)$", line)
+        if m:
+            items.append(m.group(1))
+        elif line.startswith("   ") and line[3:].strip() and items:
+            items[-1] += "\n" + line[3:]
+        else:
+            raise PackError(f"unexpected line in a numbered list: {line}")
+    return items
+
+
 def _bullets(lines):
     out = []
     for line in lines:
@@ -196,7 +232,7 @@ def files_to_guide(structure, texts, figure_src):
     parsed = {lang: _parse_markdown(texts[lang]) for lang in LANGS}
     pair = lambda get: {lang: get(lang) for lang in LANGS}
     built = {}
-    for key in ("sectionId", "categoryId", "risk"):
+    for key in ("sectionId", "categoryId", "risk", "layout"):
         if key in structure:
             built[key] = structure[key]
     built["id"] = structure["id"]
@@ -205,7 +241,7 @@ def files_to_guide(structure, texts, figure_src):
             built[key] = pair(lambda l: parsed[l][0][key])
     if "warningOrder" in structure:
         def warn(l):
-            head, text = parsed[l][2][0], parsed[l][2][1]
+            head, text = parsed[l][2][0], "\n".join(parsed[l][2][1:])
             label = HEADINGS[l]["warning"]
             m = re.match(r"^\*\*(?:Warning|Warnung): (.*)\*\*$", head)
             if not m:
@@ -238,16 +274,29 @@ def files_to_guide(structure, texts, figure_src):
         if key in structure["fieldOrder"]:
             items = {l: _bullets(parsed[l][1].get(key, [])) for l in LANGS}
             built[key] = [{l: items[l][i] for l in LANGS} for i in range(len(items["en"]))]
+    def text_items(key):
+        return {l: _numbered_text(parsed[l][1].get(key, [])) for l in LANGS}
+
     if "steps" in structure["fieldOrder"]:
-        steps = numbered("steps")
+        steps = text_items("steps")
         out = []
         for i in range(len(steps["en"])):
             title, body = {}, {}
             for l in LANGS:
-                m = re.match(r"^\*\*(.*?)\*\* (.*)$", steps[l][i][0]) or re.match(r"^\*\*(.*?)\*\*()$", steps[l][i][0])
+                m = re.match(r"^\*\*(.*?)\*\* (.*)$", steps[l][i], re.S) or re.match(r"^\*\*(.*?)\*\*()$", steps[l][i], re.S)
                 title[l], body[l] = m.group(1), m.group(2)
             out.append({"title": title, "body": body})
         built["steps"] = [{k: s[k] for k in ("title", "body")} for s in out]
+    if "notes" in structure["fieldOrder"]:  # sections of your own: a heading and a text each
+        notes = text_items("notes")
+        out = []
+        for i in range(len(notes["en"])):
+            title, text = {}, {}
+            for l in LANGS:
+                m = re.match(r"^\*\*(.*?)\*\* (.*)$", notes[l][i], re.S) or re.match(r"^\*\*(.*?)\*\*()$", notes[l][i], re.S)
+                title[l], text[l] = m.group(1), m.group(2)
+            out.append({"title": title, "text": text})
+        built["notes"] = out
     for key in ("sourceRefs", "externalRefs"):
         if key in structure["fieldOrder"]:
             notes = numbered(key)
@@ -415,6 +464,20 @@ def category_images(cdir):
     return out
 
 
+def pack_files(pack_dir):
+    """{original path: file name} of the documents in a pack's _files/ folder."""
+    folder = os.path.join(pack_dir, PACK_FILES)
+    out = {}
+    if os.path.isdir(folder):
+        for name in sorted(os.listdir(folder)):
+            if name.endswith(".json"):
+                stem = name[:-5]
+                files = [f for f in os.listdir(folder) if os.path.splitext(f)[0] == stem and not f.endswith(".json")]
+                if files:
+                    out[_read_json(os.path.join(folder, name)).get("origin")] = files[0]
+    return out
+
+
 def read_pack(pack_dir, src_mode="original", url_base=""):
     """The content object stored in one pack. src_mode 'original' gives figures their original URLs (for the
     round-trip check); 'pack' gives URLs under url_base, where the pack's images are served."""
@@ -445,15 +508,55 @@ def read_pack(pack_dir, src_mode="original", url_base=""):
                     return _read_json(os.path.splitext(os.path.join(gdir, fig["file"]))[0] + ".json")["origin"]
                 return f"{url_base}/{cat_id}/{gid}/{fig['file']}"
 
-            guides.append(files_to_guide(structure, texts, figure_src))
+            guide = files_to_guide(structure, texts, figure_src)
+            state = (structure.get("review") or {}).get("state")
+            if src_mode == "pack" and state:  # the Knowledge pages mark drafts
+                guide["reviewState"] = state
+            guides.append(guide)
         parts["guides"] = guides
         rest = {k: v for k, v in info.items() if k not in ("fieldOrder", "guideOrder")}
         if src_mode == "pack":
             mapping = {url: f"{url_base}/{cat_id}/{CATEGORY_IMAGES}/{name}" for url, name in category_images(cdir).items()}
             rest = _replace_urls(rest, mapping)
         categories[cat_id] = {k: parts[k] if k in parts else rest[k] for k in info["fieldOrder"]}
+    if src_mode == "pack":  # sources point at the pack's own documents where it has them
+        sources = _replace_urls(sources, {url: f"{url_base}/{PACK_FILES}/{name}" for url, name in pack_files(pack_dir).items()})
     values = dict(meta["content"], categories=categories, **sources)
     return {k: values[k] for k in meta["contentOrder"]}
+
+
+def _blank(value):
+    """Nothing in it: missing, empty, or a text with neither language filled in."""
+    if value in (None, "", [], {}):
+        return True
+    return isinstance(value, dict) and set(value) <= {"en", "de"} and not any(str(v).strip() for v in value.values())
+
+
+def _merge_category(base, extra):
+    """Add a later pack's category to the same category from an earlier pack: its guides, list entries (lexicon,
+    references, visual guides, ...) the earlier one lacks, its sections, and any text the earlier one left empty."""
+    for key, value in extra.items():
+        if key == "guides":
+            base.setdefault("guides", []).extend(value)
+        elif key == "sections" and isinstance(value, dict):
+            sections = base.setdefault("sections", {})
+            for sid, sec in value.items():
+                if sid not in sections or not isinstance(sections[sid], dict) or not isinstance(sec, dict):
+                    sections.setdefault(sid, sec)
+                    continue
+                for k, v in sec.items():
+                    if k == "guideIds":
+                        ids = sections[sid].setdefault("guideIds", [])
+                        ids.extend(g for g in v if g not in ids)
+                    elif _blank(sections[sid].get(k)):
+                        sections[sid][k] = v
+        elif isinstance(value, list) and isinstance(base.get(key), list):
+            known = {item.get("id") if isinstance(item, dict) else item for item in base[key]}
+            base[key].extend(item for item in value
+                             if (item.get("id") if isinstance(item, dict) else item) not in known or
+                             (isinstance(item, dict) and item.get("id") is None))
+        elif _blank(base.get(key)):
+            base[key] = value
 
 
 def compile_packs(pack_dirs, url_base=lambda pack_id: f"/knowledge/packs/{pack_id}", duplicates=None):
@@ -486,7 +589,7 @@ def compile_packs(pack_dirs, url_base=lambda pack_id: f"/knowledge/packs/{pack_i
                 kept.append(guide)
             cat = dict(cat, guides=kept)
             if cat_id in merged["categories"]:
-                merged["categories"][cat_id].setdefault("guides", []).extend(kept)
+                _merge_category(merged["categories"][cat_id], cat)
             else:
                 merged["categories"][cat_id] = cat
                 if cat_id in content.get("publishedCategoryIds", []):

@@ -25,7 +25,9 @@ from bothy_packs import PackError, SLUG, CATEGORY_IMAGES
 
 OPEN_LICENCES = ("CC0", "CC0 1.0", "CC BY 4.0", "CC BY-SA 4.0", "Public domain")
 PICTURE_EXT = (".webp", ".png", ".jpg", ".jpeg", ".svg", ".gif")
-ALLOWED_EXT = (".json", ".md", ".txt") + PICTURE_EXT
+DOCUMENT_EXT = (".pdf",)
+LICENSED_EXT = PICTURE_EXT + DOCUMENT_EXT  # files that carry a licence of their own
+ALLOWED_EXT = (".json", ".md", ".txt") + LICENSED_EXT
 MAX_FILES = 20000
 MAX_TOTAL = 2 * 1024 ** 3
 MAX_FILE = 50 * 1024 ** 2
@@ -62,11 +64,16 @@ def _write(path, value):
 
 def pictures(pack_dir):
     """Every picture in a pack with its licence: [{"file": relative path, "licence", "author", "source"}]."""
+    return [f for f in licensed_files(pack_dir) if f["file"].lower().endswith(PICTURE_EXT)]
+
+
+def licensed_files(pack_dir):
+    """Every picture and document in a pack with its licence: [{"file": relative path, "licence", "author", "source"}]."""
     out = []
     for root, dirs, files in os.walk(pack_dir):
         dirs.sort()
         for name in sorted(files):
-            if name.lower().endswith(PICTURE_EXT):
+            if name.lower().endswith(LICENSED_EXT):
                 path = os.path.join(root, name)
                 info = _read(os.path.splitext(path)[0] + ".json", {})
                 out.append({"file": os.path.relpath(path, pack_dir).replace(os.sep, "/"),
@@ -107,7 +114,7 @@ def share_problems(pack_dir):
         problems.append(f"the texts need an open licence (CC BY-SA 4.0, CC BY 4.0 or CC0), not {meta.get('licence') or 'none'}")
     if meta.get("private", True):
         problems.append("the pack is marked private")
-    for pic in pictures(pack_dir):
+    for pic in licensed_files(pack_dir):
         if not is_open(pic["licence"]):
             problems.append(f"{pic['file']}: licence {pic['licence'] or 'missing'}")
         elif not pic["author"] or not pic["source"]:
@@ -163,8 +170,10 @@ def _copy_selection(src, dest, categories=None, guides=None):
                 if "guideIds" in sec:
                     sec["guideIds"] = [x for x in sec["guideIds"] if x in gids]
                 sections[sid] = sec
-            info = {"id": cat, "intro": info.get("intro", {"en": "", "de": ""}), "sections": sections,
-                    "fieldOrder": ["id", "intro", "sections", "guides", "lexicon", "references"], "guideOrder": gids}
+            shelf = {k: info[k] for k in ("title", "description", "icon", "group", "custom") if k in info}
+            info = {"id": cat, "intro": info.get("intro", {"en": "", "de": ""}), "sections": sections, **shelf,
+                    "fieldOrder": ["id", "intro", "sections", "guides", "lexicon", "references"] + list(shelf),
+                    "guideOrder": gids}
             _write(os.path.join(dest, cat, "category.json"), info)
             _write(os.path.join(dest, cat, "lexicon.json"), [])
             _write(os.path.join(dest, cat, "references.json"), [])
@@ -188,14 +197,24 @@ def _copy_selection(src, dest, categories=None, guides=None):
     _write(os.path.join(dest, "pack.json"), meta)
 
 
+def _shows(item, urls):
+    """Whether a dict itself shows one of urls (in its own fields, not in lists inside it, such as a page's blocks)."""
+    for value in item.values():
+        if isinstance(value, str) and value in urls:
+            return True
+        if isinstance(value, dict) and _shows(value, urls):
+            return True
+    return False
+
+
 def _drop_urls(value, urls):
-    """Remove entries that show one of urls: list items (dicts) that contain one are left out, other values emptied."""
+    """Remove what shows one of urls: list entries (dicts) that show one are left out, other values emptied."""
     if isinstance(value, str):
         return "" if value in urls else value
     if isinstance(value, list):
         kept = []
         for item in value:
-            if isinstance(item, (dict, list)) and any(u in urls for u in bothy_packs._image_urls(item)):
+            if isinstance(item, dict) and _shows(item, urls):
                 continue
             kept.append(_drop_urls(item, urls))
         return kept
@@ -208,7 +227,18 @@ def _make_shareable(pack_dir, report):
     """Leave out pictures without an open licence, and what shows them; report what was left out."""
     meta = _read(os.path.join(pack_dir, "pack.json"))
     removed = report.setdefault("leftOut", [])
-    private = {p["file"]: p for p in pictures(pack_dir) if not is_open(p["licence"])}
+    private = {p["file"]: p for p in licensed_files(pack_dir) if not is_open(p["licence"])}
+    # Documents that may not be shared: the source stays cited, without its file.
+    documents = {url for url, name in bothy_packs.pack_files(pack_dir).items() if f"{bothy_packs.PACK_FILES}/{name}" in private}
+    if documents:
+        path = os.path.join(pack_dir, "sources.json")
+        srcs = _read(path, {})
+        for key in ("sources", "verificationSources"):
+            for item in srcs.get(key, []):
+                for field, value in list(item.items()):
+                    if isinstance(value, str) and value in documents:
+                        item[field] = ""
+        _write(path, srcs)
     if meta.get("kind") == "medical":
         visuals = _read(os.path.join(pack_dir, "visuals.json"), [])
         gone = set()
@@ -337,6 +367,10 @@ def _check_picture(path):
         if re.search(rb"<script|\bon[a-z]+\s*=|javascript:|<foreignObject|<!ENTITY", data, re.I):
             raise PackError(f"{os.path.basename(path)}: SVG pictures can't contain scripts or entities")
         return
+    if lower.endswith(".pdf"):
+        if not data.startswith(b"%PDF-"):
+            raise PackError(f"{os.path.basename(path)} isn't a PDF")
+        return
     try:
         from PIL import Image
     except ImportError:
@@ -362,7 +396,7 @@ def _validate(pack_dir):
     for root, _, files in os.walk(pack_dir):
         for name in files:
             path = os.path.join(root, name)
-            if name.lower().endswith(PICTURE_EXT):
+            if name.lower().endswith(LICENSED_EXT):
                 _check_picture(path)
             elif name.endswith(".json"):
                 _read(path)

@@ -1,0 +1,34 @@
+name: Share guides
+description: Send guides you wrote on your Bothy to the community collection.
+title: "Share: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for sharing! On your Bothy, open **Knowledge**, tap the pencil, then **Share**: it makes the file and shows a code to get it onto this phone or computer.
+
+        Attach the file below. A robot checks it within a few minutes and replies here. If all is well it prepares the addition, and a maintainer reads your guides before they appear for everyone.
+  - type: textarea
+    id: file
+    attributes:
+      label: The pack file
+      description: Drag the `.bothy-pack.zip` file into this box, or click the box and choose it.
+      placeholder: Drop the file here
+    validations:
+      required: true
+  - type: textarea
+    id: about
+    attributes:
+      label: What's in it
+      description: One or two sentences about the guides, and the sources you used. Shown to everyone who installs them.
+    validations:
+      required: true
+  - type: checkboxes
+    id: rights
+    attributes:
+      label: Rights
+      options:
+        - label: I wrote these texts, or may share them, and agree that they are published under CC BY-SA 4.0.
+          required: true
+        - label: Every picture is my own or openly licensed, as marked in Bothy.
+          required: true

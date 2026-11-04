@@ -5,10 +5,11 @@
 
 A pack passes when:
   - it is a valid pack that compiles, in packs/knowledge/<id>/ or packs/medical/<id>/ (folder name = pack id)
-  - it holds only text, JSON and pictures; every picture is a real picture and SVGs carry no scripts
-  - the texts and every picture have an open licence (CC BY-SA 4.0, CC BY 4.0, CC0, public domain), and every
-    picture says who made it and where it comes from
-  - pack.json has a title and description in English and German, a version (1.2.3) and its authors
+  - it holds only text, JSON, pictures and PDFs; every picture is a real picture, every PDF a real PDF, and SVGs
+    carry no scripts
+  - the texts, every picture and every PDF have an open licence (CC BY-SA 4.0, CC BY 4.0, CC0, public domain), and
+    every picture and PDF says who made it and where it comes from
+  - pack.json has a title and a description (English, German or both), a version (1.2.3) and its authors
   - pictures are at most 2 MB each, the pack at most 50 MB
   - medical packs: every protocol was reviewed by a named, qualified person
   - no guide is in two packs on the same shelf, and no two packs share an id
@@ -84,9 +85,8 @@ def check_pack(kind, name, path, args):
     problems += bothy_pack_files.share_problems(path)
     for key in ("title", "description"):
         value = meta.get(key) or {}
-        for lang in ("en", "de"):
-            if not str(value.get(lang, "") if isinstance(value, dict) else "").strip():
-                problems.append(f"pack.json needs a {key} in {'English' if lang == 'en' else 'German'} ({key}.{lang})")
+        if not any(str(value.get(lang, "")).strip() for lang in ("en", "de")) if isinstance(value, dict) else True:
+            problems.append(f"pack.json needs a {key} (in English or German)")
     if not version_key(meta.get("version")):
         problems.append(f"pack.json needs a version like 1.0.0, not {meta.get('version')!r}")
     if not [a for a in meta.get("authors", []) if str(a).strip()]:
@@ -99,7 +99,7 @@ def check_pack(kind, name, path, args):
             size = os.path.getsize(full)
             total += size
             if not fname.lower().endswith(bothy_pack_files.ALLOWED_EXT):
-                problems.append(f"{rel}: packs hold only text, JSON and pictures")
+                problems.append(f"{rel}: packs hold only text, JSON, pictures and PDFs")
             elif fname.lower().endswith(bothy_pack_files.PICTURE_EXT) and size > MAX_PICTURE:
                 problems.append(f"{rel} is {size / 1e6:.1f} MB; pictures may be 2 MB at most (the Bothy editor shrinks them)")
     if total > MAX_PACK:

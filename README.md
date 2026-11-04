@@ -6,7 +6,7 @@ Guides and medical protocols for [Bothy](https://github.com/Dith440/bothy) decks
 
 ## Getting packs onto a deck
 
-On the deck, open **Knowledge**, tap the pencil, then **Import**. Packs from this collection are listed under *Community collection*; install or update them there. Or in a terminal:
+On the deck, open **Knowledge**, tap the pencil, then **Get guides**: install or update packs from this collection there. Or in a terminal:
 
 ```sh
 bothy content knowledge list                 # what's in the collection, and what's installed
@@ -23,6 +23,7 @@ packs/knowledge/<pack-id>/    Knowledge guides, one folder per pack
 packs/medical/<pack-id>/      Medical protocols (stricter review)
 tools/check.py                the checks every contribution must pass
 tools/build.py                builds the pack files and catalogue.json that decks download
+tools/submission.py           the robot behind the Share guides form
 ```
 
 A pack is a folder of plain files, one Markdown file per guide and language, so changes read well in a pull request. The format is described in Bothy's [docs/knowledge-packs.md](https://github.com/Dith440/bothy/blob/main/docs/knowledge-packs.md).
@@ -31,7 +32,7 @@ The catalogue and pack files are published at `https://dith440.github.io/bothy-k
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). In short: write on your deck, export the pack as **Shareable**, and open a pull request with its folder.
+Write guides on your Bothy (Knowledge → pencil), tap **Share**, and attach the file it makes to the [Share guides form](../../issues/new?template=share-guides.yml). A robot checks it and prepares the addition; a maintainer reads it before it goes live. More in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Licence
 

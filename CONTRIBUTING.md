@@ -16,13 +16,19 @@ Open **Knowledge**, tap the pencil, and write in the editor. It has a built-in *
 
 Only pictures you made yourself, or ones with an open licence (CC BY-SA 4.0, CC BY 4.0, CC0, public domain). Every picture needs its maker and where it comes from. Crops from books and anything marked non-commercial or no-derivatives can't be shared; the Shareable export leaves them out for you.
 
-## 3. Export and send it
+The same goes for PDFs attached to a source: only openly licensed ones are shared. A book you may not pass on can still be cited (title, author, pages); Bothy leaves the PDF itself out.
 
-1. In the editor, choose **Export**, then **Shareable**, the pack, shelf or guide you want to share, and give the pack an id that's free in this collection.
-2. Unzip the file. It holds one folder, named after the pack.
-3. Copy that folder into `packs/knowledge/` (or `packs/medical/`) in your fork of this repo, and open a pull request.
+## 3. Send it
 
-To change a pack that's already here, change its files and raise its `version` in `pack.json` (1.0.0 → 1.0.1 for fixes, 1.1.0 for new guides).
+The easy way, no git needed:
+
+1. On your Bothy, in edit mode, tap **Share**. Choose the guide, its shelf, or all of My guides, and give it a name. Bothy makes the file and leaves out pictures that can't be shared.
+2. Scan the first QR code with your phone (or find the file in the Files app), then open the second one: the **Share guides** form here on GitHub.
+3. Attach the file, say a sentence about it and its sources, tick the two boxes, and submit.
+
+A robot checks the file within a few minutes and answers on the form. If something needs fixing, fix it in Bothy, share again, and edit the form with the new file; it checks again. If all is well, it opens a pull request and a maintainer reviews it. Sending an updated version of a pack that's already here works the same way; the robot raises its version.
+
+The git way: unzip the file (one folder, named after the pack), copy that folder into `packs/knowledge/` in your fork, raise `version` in `pack.json` if the pack is already here, and open a pull request.
 
 ## 4. Checks and review
 
