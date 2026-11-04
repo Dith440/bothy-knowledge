@@ -101,6 +101,10 @@ def guide_to_files(guide, image_name):
                                for r in guide.get("sourceRefs", [])]
     structure["externalRefs"] = [{k: v for k, v in r.items() if k != "note"} | {"fieldOrder": list(r)}
                                  for r in guide.get("externalRefs", [])]
+    # Own sections may carry how they look (icon, colour, form); their texts are in the Markdown.
+    if any(list(n) != ["title", "text"] for n in guide.get("notes", [])):
+        structure["notes"] = [{k: v for k, v in n.items() if k not in ("title", "text")} | {"fieldOrder": list(n)}
+                              for n in guide["notes"]]
     structure["commands"] = [{"code": c["code"], "fieldOrder": list(c)} for c in guide.get("commands", [])]
     structure["actions"] = [{k: v for k, v in a.items() if k != "label"} | {"fieldOrder": list(a)}
                             for a in guide.get("actions", [])]
@@ -296,6 +300,9 @@ def files_to_guide(structure, texts, figure_src):
                 m = re.match(r"^\*\*(.*?)\*\* (.*)$", notes[l][i], re.S) or re.match(r"^\*\*(.*?)\*\*()$", notes[l][i], re.S)
                 title[l], text[l] = m.group(1), m.group(2)
             out.append({"title": title, "text": text})
+        for i, meta in enumerate(structure.get("notes", [])[:len(out)]):
+            values = dict(meta, **out[i])
+            out[i] = {k: values[k] for k in meta["fieldOrder"]}
         built["notes"] = out
     for key in ("sourceRefs", "externalRefs"):
         if key in structure["fieldOrder"]:
