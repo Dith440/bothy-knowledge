@@ -666,16 +666,22 @@ def diff(a, b):
 #   images/                                the figure files, each with a .json naming source and licence
 
 MEDICAL_HEADINGS = {
-    "en": {"red": "Red flags", "steps": "Steps", "avoid": "Avoid"},
-    "de": {"red": "Warnzeichen", "steps": "Schritte", "avoid": "Vermeiden"},
+    "en": {"red": "Red flags", "steps": "Steps", "avoid": "Avoid", "notes": "Notes"},
+    "de": {"red": "Warnzeichen", "steps": "Schritte", "avoid": "Vermeiden", "notes": "Notizen"},
 }
 MEDICAL_KEY = {title: key for lang in MEDICAL_HEADINGS.values() for key, title in lang.items()}
 MEDICAL_LISTS = ("red", "steps", "avoid")
+# A protocol may also have sections of its own ("notes": a heading and a text each, in the Markdown under Notes, their
+# form in protocol.json) and the order and width of its modules ("layout", in protocol.json).
 
 
 def protocol_to_files(protocol):
-    structure = {k: v for k, v in protocol.items() if k not in ("title", "summary") + MEDICAL_LISTS}
+    structure = {k: v for k, v in protocol.items() if k not in ("title", "summary", "notes") + MEDICAL_LISTS}
     structure["fieldOrder"] = list(protocol)
+    notes = protocol.get("notes", [])
+    if any(list(n) != ["title", "text"] for n in notes):
+        structure["notes"] = [{k: v for k, v in n.items() if k not in ("title", "text")} | {"fieldOrder": list(n)}
+                              for n in notes]
     texts = {}
     for lang in LANGS:
         where = f"{protocol['id']} ({lang})"
@@ -689,20 +695,30 @@ def protocol_to_files(protocol):
             else:
                 body = [f"- {_one_line(t, where)}" for t in items]
             lines += ["", f"## {h[key]}", ""] + body
+        if "notes" in protocol:
+            lines += ["", f"## {h['notes']}", ""] + [
+                line for i, n in enumerate(notes, 1)
+                for line in _item_with_lines(f"{i}. **{_one_line(n['title'][lang], where)}**", n["text"][lang], where)]
         texts[lang] = "\n".join(lines) + "\n"
     return structure, texts
 
 
 def files_to_protocol(structure, texts):
-    values = {k: v for k, v in structure.items() if k != "fieldOrder"}
+    values = {k: v for k, v in structure.items() if k not in ("fieldOrder", "notes")}
+    note_texts = {}
     for lang in LANGS:
         front = _parse_markdown(texts[lang].split("\n## ", 1)[0] + "\n")[0]
         lines = texts[lang].split("\n")
         current = None
         lists = {key: [] for key in MEDICAL_LISTS}
+        note_lines = []
         for line in lines[lines.index("---", 1) + 1:]:
             if line.startswith("## "):
-                current = MEDICAL_KEY[line[3:].strip()]
+                current = MEDICAL_KEY.get(line[3:].strip())
+                if current is None:
+                    raise PackError(f"unknown section heading: {line}")
+            elif line and current == "notes":
+                note_lines.append(line)
             elif line and current == "steps":
                 lists["steps"].append(re.match(r"^\d+\. (.*)$", line).group(1))
             elif line and current:
@@ -711,6 +727,26 @@ def files_to_protocol(structure, texts):
             values.setdefault(key, {})[lang] = front[key]
         for key in MEDICAL_LISTS:
             values.setdefault(key, {})[lang] = lists[key]
+        note_texts[lang] = []
+        for item in _numbered_text(note_lines):
+            m = re.match(r"^\*\*(.*?)\*\* (.*)$", item, re.S) or re.match(r"^\*\*(.*?)\*\*()$", item, re.S)
+            if not m:
+                raise PackError(f"{structure.get('id')}: an own section starts with **HEADING**")
+            note_texts[lang].append((m.group(1), m.group(2)))
+    if "notes" in structure["fieldOrder"]:
+        count = len(note_texts["en"])
+        if any(len(note_texts[lang]) != count for lang in LANGS):
+            raise PackError(f"{structure.get('id')}: both languages need the same sections of their own")
+        metas = structure.get("notes", [])
+        notes = []
+        for i in range(count):
+            note = {"title": {lang: note_texts[lang][i][0] for lang in LANGS},
+                    "text": {lang: note_texts[lang][i][1] for lang in LANGS}}
+            if i < len(metas):
+                merged = dict(metas[i], **note)
+                note = {k: merged[k] for k in metas[i]["fieldOrder"]}
+            notes.append(note)
+        values["notes"] = notes
     return {k: values[k] for k in structure["fieldOrder"]}
 
 
@@ -752,16 +788,41 @@ def read_medical_pack(pack_dir):
             with open(os.path.join(pdir, f"protocol.{lang}.md"), encoding="utf-8") as fh:
                 texts[lang] = fh.read()
         protocols.append(files_to_protocol(_read_json(os.path.join(pdir, "protocol.json")), texts))
-    return {"docs": _read_json(os.path.join(pack_dir, "docs.json")),
-            "visuals": _read_json(os.path.join(pack_dir, "visuals.json")), "protocols": protocols}
+    content = {"docs": _read_json(os.path.join(pack_dir, "docs.json")),
+               "visuals": _read_json(os.path.join(pack_dir, "visuals.json")), "protocols": protocols}
+    content.update(read_medications(pack_dir))
+    return content
+
+
+MEDICATION_KEYS = {"medications": "medications", "medicationGroups": "groups", "medicationSources": "sources"}
+
+
+def read_medications(pack_dir):
+    """The optional medications.json of a medical pack: {groups, sources, medications}, each a list of items with an id."""
+    path = os.path.join(pack_dir, "medications.json")
+    if not os.path.isfile(path):
+        return {key: [] for key in MEDICATION_KEYS}
+    data = _read_json(path)
+    if not isinstance(data, dict):
+        raise PackError("medications.json must be an object with groups, sources and medications")
+    out = {}
+    for key, field in MEDICATION_KEYS.items():
+        items = data.get(field, [])
+        if not isinstance(items, list) or any(not isinstance(i, dict) or not SLUG.match(str(i.get("id", ""))) for i in items):
+            raise PackError(f"medications.json: every entry in {field} needs an id of lowercase letters, digits and hyphens")
+        out[key] = items
+    return out
 
 
 def compile_medical_packs(pack_dirs, url_base=lambda pack_id: f"/knowledge/packs/{pack_id}"):
     """Merge medical packs into the content the Medical page reads; figure files get the URLs they're served at."""
-    merged = {"docs": [], "visuals": [], "protocols": []}
+    merged = {"docs": [], "visuals": [], "protocols": [], "medications": [], "medicationGroups": [], "medicationSources": []}
     for pack_dir in pack_dirs:
         pack_id = _read_json(os.path.join(pack_dir, "pack.json"))["id"]
         content = read_medical_pack(pack_dir)
+        for doc in content["docs"]:  # a document the pack carries in _files/ opens from the pack
+            if doc.get("file") and os.path.isfile(os.path.join(pack_dir, PACK_FILES, doc["file"])):
+                doc["url"] = f"{url_base(pack_id)}/{PACK_FILES}/{doc['file']}"
         for visual in content["visuals"]:
             for key in ("image", "thumb"):
                 if visual.get(key):

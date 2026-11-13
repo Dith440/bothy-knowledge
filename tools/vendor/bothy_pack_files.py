@@ -91,6 +91,7 @@ def summary(pack_dir):
            "pictures": len(pics), "openPictures": sum(1 for p in pics if is_open(p["licence"]))}
     if meta.get("kind") == "medical":
         out["protocols"] = len(meta.get("protocolOrder", []))
+        out["medications"] = len(_read(os.path.join(pack_dir, "medications.json"), {}).get("medications", []))
         out["reviewed"] = sum(1 for pid in meta.get("protocolOrder", [])
                               if _read(os.path.join(pack_dir, "protocols", pid, "protocol.json"), {})
                               .get("reviewState", {}).get("state") == "reviewed")
@@ -295,7 +296,7 @@ def _make_shareable(pack_dir, report):
 
 
 def export(pack_dir, out_dir, *, categories=None, guides=None, shareable=False, new_id=None, title=None,
-           text_licence=None, authors=None):
+           text_licence=None, authors=None, shared_version=None):
     """Write a pack file into out_dir and return a report: {"file", "name", "size", "summary", "leftOut"}.
 
     categories / guides narrow the export to some categories, or single guides given as "category/guide".
@@ -332,6 +333,9 @@ def export(pack_dir, out_dir, *, categories=None, guides=None, shareable=False, 
         new_meta["exported"] = _now()
         if shareable:
             new_meta["private"] = False
+            new_meta["distribution"] = "shared"
+            if shared_version:
+                new_meta["version"] = shared_version
             _write(os.path.join(dest, "pack.json"), new_meta)
             _make_shareable(dest, report)
         else:
@@ -501,7 +505,9 @@ def install(zip_path, packs_root, staging_root, mode="new", new_id=None, keep_ro
                 raise PackError("give the copy an id: lowercase letters, digits and hyphens")
             pack_id = new_id
             meta["id"] = new_id
-            _write(os.path.join(folder, "pack.json"), meta)
+        if meta.get("distribution") == "shared":
+            meta["origin"] = {"imported": True}
+        _write(os.path.join(folder, "pack.json"), meta)
         target = os.path.join(packs_root, pack_id)
         replaced = None
         if os.path.exists(target):
@@ -673,7 +679,7 @@ def copy_pack(packs_root, pack_id, new_id, title=None):
     shutil.copytree(src, dest, ignore=shutil.ignore_patterns("*.tmp", ".*"))
     meta = _read(os.path.join(dest, "pack.json"))
     meta.update({"id": new_id, "private": True})
-    for key in ("readOnly", "origin", "exported"):
+    for key in ("readOnly", "origin", "exported", "distribution"):
         meta.pop(key, None)
     if title:
         meta["title"] = {"en": title, "de": title}
