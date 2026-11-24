@@ -1,0 +1,38 @@
+{
+ "format": "bothy-pack/1",
+ "kind": "knowledge",
+ "id": "bothy-community",
+ "title": {
+  "de": "Bothy Community",
+  "en": "Bothy Community"
+ },
+ "description": {
+  "de": "Anleitungen aus der Bothy-Community, geprüft und freigegeben von ihren Moderatoren.",
+  "en": "Guides from the Bothy community, reviewed and accepted by its moderators."
+ },
+ "version": "1.0.0",
+ "licence": "CC BY-SA 4.0",
+ "authors": [
+  "dith7443"
+ ],
+ "private": false,
+ "content": {
+  "schemaVersion": 13,
+  "release": "BOTHY_COMMUNITY",
+  "generated": "2026-11-24",
+  "publishedCategoryIds": [
+   "water"
+  ]
+ },
+ "contentOrder": [
+  "schemaVersion",
+  "release",
+  "generated",
+  "publishedCategoryIds",
+  "sources",
+  "categories"
+ ],
+ "categoryOrder": [
+  "water"
+ ]
+}
