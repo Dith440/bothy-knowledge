@@ -30,6 +30,8 @@ A pack is a folder of plain files, one Markdown file per guide and language, so 
 
 The catalogue and pack files are published at `https://dith440.github.io/bothy-knowledge/` after every change on `main`. The catalogue is signed (`catalogue.json.sig`, Ed25519) with the repository secret `CATALOGUE_SIGNING_KEY`; Bothy ships the matching public key and refuses a catalogue whose signature is missing or doesn't match, and the publish workflow stops rather than publish unsigned. A new key needs a Bothy release with the new public key (`CATALOGUE_KEY` in `services/knowledge-packs/bothy_pack_files.py`).
 
+`packs/knowledge/bothy-community/` belongs to the community site (contribute.bothy.cloud): the guides its moderators accepted. The site keeps it current through pull requests from its `community-sync` branch and merges them when the checks pass; the checks make sure that branch changes nothing outside that folder. Don't edit the folder by hand, the site replaces it on its next change.
+
 A pack that needs a newer Bothy names the oldest one in `pack.json` (`"minBothy": "0.2.0"`); older decks list it without installing it.
 
 ## Contributing

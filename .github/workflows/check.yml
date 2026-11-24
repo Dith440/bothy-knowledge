@@ -18,6 +18,16 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      # The community site (contribute.bothy.cloud) writes only its own pack, from its own branch.
+      - name: The community site's pull request changes only its pack
+        if: github.head_ref == 'community-sync'
+        run: |
+          outside=$(git diff --name-only "origin/${GITHUB_BASE_REF}...HEAD" | grep -v '^packs/knowledge/bothy-community/' || true)
+          if [ -n "$outside" ]; then
+            echo "The community site may only change packs/knowledge/bothy-community/, not:"
+            echo "$outside"
+            exit 1
+          fi
       - name: Pillow, to check that every picture is a real picture
         run: pip install --quiet pillow
       - name: Check every pack (a changed pack needs a higher version)
