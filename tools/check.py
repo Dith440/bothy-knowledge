@@ -13,7 +13,10 @@ A pack passes when:
   - pictures are at most 2 MB each, the pack at most 50 MB
   - medical packs: every protocol was reviewed by a named, qualified person
   - no guide is in two packs on the same shelf, and no two packs share an id
-With --base REF (a pull request's target), a pack that changed must also have a higher version than in REF.
+A withdrawn pack is a folder with only withdrawn.json ({"id", "kind", "version", "withdrawn": date, "reason"}): the
+catalogue then tells Bothys that installed it to remove it.
+With --base REF (a pull request's target), a pack that changed must also have a higher version than in REF
+(a withdrawal too, and a pack published again after one).
 
 Exit status is the number of problems found.
 """
@@ -51,12 +54,14 @@ def pack_dirs():
 
 
 def base_version(ref, kind, name):
-    try:
-        text = subprocess.run(["git", "show", f"{ref}:packs/{kind}/{name}/pack.json"], cwd=ROOT,
-                              capture_output=True, text=True, check=True).stdout
-        return json.loads(text).get("version")
-    except (subprocess.CalledProcessError, ValueError):
-        return None  # a new pack
+    for file in ("pack.json", "withdrawn.json"):  # the pack, or its withdrawal
+        try:
+            text = subprocess.run(["git", "show", f"{ref}:packs/{kind}/{name}/{file}"], cwd=ROOT,
+                                  capture_output=True, text=True, check=True).stdout
+            return json.loads(text).get("version")
+        except (subprocess.CalledProcessError, ValueError):
+            continue
+    return None  # a new pack
 
 
 def changed(ref, kind, name):
@@ -65,9 +70,36 @@ def changed(ref, kind, name):
     return bool(out.strip())
 
 
+def check_withdrawn(kind, name, path, args):
+    """A withdrawn pack: only withdrawn.json, saying which pack and from which version on."""
+    problems = []
+    others = sorted(os.listdir(path))
+    if others != ["withdrawn.json"]:
+        problems.append(f"a withdrawn pack holds only withdrawn.json, not {', '.join(f for f in others if f != 'withdrawn.json')}")
+    try:
+        meta = json.load(open(os.path.join(path, "withdrawn.json"), encoding="utf-8"))
+    except ValueError as exc:
+        return problems + [f"withdrawn.json isn't valid JSON: {exc}"]
+    if meta.get("id") != name:
+        problems.append(f"the folder is called {name}, but withdrawn.json says id {meta.get('id')!r}")
+    if meta.get("kind") != kind:
+        problems.append(f"withdrawn.json says it was a {meta.get('kind')} pack, in packs/{kind}/")
+    if not version_key(meta.get("version")):
+        problems.append(f"withdrawn.json needs a version like 1.0.3, not {meta.get('version')!r}")
+    if not str(meta.get("withdrawn") or "").strip():
+        problems.append("withdrawn.json needs the date it was withdrawn")
+    if args.base and changed(args.base, kind, name):
+        old = base_version(args.base, kind, name)
+        if old and version_key(meta.get("version")) and version_key(old) and version_key(meta["version"]) <= version_key(old):
+            problems.append(f"the withdrawal needs a higher version than the pack had (it is {meta['version']}, was {old})")
+    return problems
+
+
 def check_pack(kind, name, path, args):
     problems = []
     meta_path = os.path.join(path, "pack.json")
+    if not os.path.isfile(meta_path) and os.path.isfile(os.path.join(path, "withdrawn.json")):
+        return check_withdrawn(kind, name, path, args)
     if not os.path.isfile(meta_path):
         return ["pack.json is missing"]
     try:

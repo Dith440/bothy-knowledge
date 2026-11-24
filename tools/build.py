@@ -70,11 +70,19 @@ def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     out = os.path.abspath(args[0] if args else os.path.join(ROOT, "dist"))
     os.makedirs(os.path.join(out, "packs"), exist_ok=True)
-    entries = []
+    entries, withdrawn = [], []
     for kind in KINDS:
         base = os.path.join(ROOT, "packs", kind)
         for name in sorted(os.listdir(base)) if os.path.isdir(base) else []:
             path = os.path.join(base, name)
+            gone = os.path.join(path, "withdrawn.json")
+            if not os.path.isfile(os.path.join(path, "pack.json")) and os.path.isfile(gone):
+                # Withdrawn: no file to download; Bothys that installed it remove it with their next update.
+                meta = json.load(open(gone, encoding="utf-8"))
+                withdrawn.append({"id": name, "kind": kind, "version": meta.get("version"), "title": meta.get("title"),
+                                  "withdrawn": meta.get("withdrawn"), "reason": meta.get("reason", "")})
+                print(f"  {name}  withdrawn ({meta.get('version')})")
+                continue
             if not os.path.isfile(os.path.join(path, "pack.json")):
                 continue
             meta = json.load(open(os.path.join(path, "pack.json"), encoding="utf-8"))
@@ -95,7 +103,8 @@ def main():
             entries.append(entry)
             print(f"  {file_name}  {entry['size'] / 1e3:.0f} kB")
     catalogue = {"format": FORMAT, "name": "Bothy community knowledge",
-                 "updated": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "packs": entries}
+                 "updated": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "packs": entries,
+                 "withdrawn": withdrawn}
     with open(os.path.join(out, "catalogue.json"), "w", encoding="utf-8", newline="\n") as fh:
         json.dump(catalogue, fh, ensure_ascii=False, indent=1)
         fh.write("\n")
