@@ -645,7 +645,14 @@ def read_catalogue(url, timeout=30, key="default"):
               and isinstance(entry.get("size"), int) and 0 < entry["size"] <= MAX_DOWNLOAD)
         if ok:
             packs.append(dict(entry, url=urllib.parse.urljoin(url, entry["file"])))
-    return {"name": data.get("name", ""), "updated": data.get("updated", ""), "url": url, "packs": packs}
+    # Packs the collection took back (no longer offered): installed copies from it are removed with the next update.
+    withdrawn = []
+    for entry in data.get("withdrawn", []) if isinstance(data.get("withdrawn"), list) else []:
+        if (isinstance(entry, dict) and SLUG.match(str(entry.get("id", ""))) and entry.get("kind") in ("knowledge", "medical")
+                and _VERSION.match(str(entry.get("version", "")))):
+            withdrawn.append({k: entry.get(k) for k in ("id", "kind", "version", "title", "withdrawn", "reason")})
+    return {"name": data.get("name", ""), "updated": data.get("updated", ""), "url": url, "packs": packs,
+            "withdrawn": withdrawn}
 
 
 def installed(packs_root):
@@ -660,7 +667,9 @@ def installed(packs_root):
 
 def catalogue_status(catalogue, packs_root, this_bothy="installed"):
     """Each catalogue entry with "state": new, installed, update (a newer version), taken (one of your own
-    packs uses the id) or newer (it needs a newer Bothy than this one: its "minBothy"), and "installedVersion"."""
+    packs uses the id) or newer (it needs a newer Bothy than this one: its "minBothy"), and "installedVersion".
+    Packs the collection withdrew come last, with "state": "withdrawn", when a copy from that collection is
+    installed here (catalogue["url"]; any collection when it isn't given); your own packs are never touched."""
     have = installed(packs_root)
     if this_bothy == "installed":
         this_bothy = bothy_version()
@@ -679,6 +688,13 @@ def catalogue_status(catalogue, packs_root, this_bothy="installed"):
         else:
             state = "installed"
         out.append(dict(entry, state=state, installedVersion=(mine or {}).get("version")))
+    offered = {e["id"] for e in catalogue["packs"]}
+    for entry in catalogue.get("withdrawn") or []:
+        mine = have.get(entry["id"])
+        source = (mine or {}).get("origin") or {}
+        if (mine and source.get("catalogue") and entry["id"] not in offered
+                and (not catalogue.get("url") or source["catalogue"] == catalogue["url"])):
+            out.append(dict(entry, state="withdrawn", installedVersion=mine.get("version")))
     return out
 
 
@@ -722,6 +738,23 @@ def install_entry(catalogue_url, entry, packs_root, staging_root, keep_root=None
     _write(meta_path, meta)
     result["updated"] = bool(mine)
     return result
+
+
+def withdraw_entry(entry, packs_root, keep_root):
+    """Remove a pack the collection withdrew: it moves aside to keep_root (like a replaced pack, the last few are
+    kept), never one of your own. Returns {"id", "kept"}."""
+    mine = installed(packs_root).get(entry["id"])
+    if not mine:
+        raise PackError(f"{entry['id']} isn't installed")
+    if not (mine.get("origin") or {}).get("catalogue"):
+        raise PackError(f"{entry['id']} is one of your own packs; it stays")
+    os.makedirs(keep_root, exist_ok=True)
+    kept = os.path.join(keep_root, f"{entry['id']}-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}-withdrawn")
+    os.rename(os.path.join(packs_root, entry["id"]), kept)
+    old = sorted(n for n in os.listdir(keep_root) if n.startswith(entry["id"] + "-"))
+    for name in old[:-3]:
+        shutil.rmtree(os.path.join(keep_root, name), ignore_errors=True)
+    return {"id": entry["id"], "kept": kept}
 
 
 def copy_pack(packs_root, pack_id, new_id, title=None):
