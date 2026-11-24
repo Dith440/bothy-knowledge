@@ -89,6 +89,8 @@ def check_pack(kind, name, path, args):
             problems.append(f"pack.json needs a {key} (in English or German)")
     if not version_key(meta.get("version")):
         problems.append(f"pack.json needs a version like 1.0.0, not {meta.get('version')!r}")
+    if "minBothy" in meta and not version_key(meta.get("minBothy")):
+        problems.append(f"minBothy (the oldest Bothy the pack works with) must be a version like 0.2.0, not {meta.get('minBothy')!r}")
     if not [a for a in meta.get("authors", []) if str(a).strip()]:
         problems.append("pack.json needs its authors")
     total = 0

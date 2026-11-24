@@ -558,6 +558,12 @@ def removable_drives(user):
 
 CATALOGUE_FORMAT = "bothy-catalogue/1"
 DEFAULT_CATALOGUE = "https://dith440.github.io/bothy-knowledge/catalogue.json"
+# The community collection signs its catalogue (catalogue.json.sig: the Ed25519 signature of catalogue.json, in
+# base64); this is the key it signs with. A Bothy refuses the collection's catalogue if the signature is missing or
+# doesn't match, so a changed or redirected catalogue can't offer it other packs. Another collection, set with
+# BOTHY_KNOWLEDGE_CATALOGUE, can bring its own key (BOTHY_KNOWLEDGE_CATALOGUE_KEY) or stay unsigned.
+CATALOGUE_KEY = "GfqXjaBF92iZ0AXw56CwDO5jZI0Z9HLZYCo7bZXP42U="
+SIGNATURE_SUFFIX = ".sig"
 MAX_CATALOGUE = 4 * 1024 ** 2
 MAX_DOWNLOAD = 500 * 1024 ** 2
 USER_AGENT = "Bothy knowledge packs"
@@ -569,15 +575,59 @@ def version_key(text):
     return tuple(int(x) for x in m.groups()) if m else (0, 0, 0)
 
 
-def read_catalogue(url, timeout=30):
-    """The packs a catalogue offers, each with an absolute "url". Entries that don't look right are skipped."""
+def bothy_version(path="/opt/bothy/current/VERSION"):
+    """This Bothy's version as numbers ("0.1.1-dev" counts as 0.1.1); None when it can't be read (a checkout)."""
+    try:
+        m = re.match(r"(\d+)\.(\d+)\.(\d+)", open(path, encoding="utf-8").read().strip())
+    except OSError:
+        return None
+    return tuple(int(x) for x in m.groups()) if m else None
+
+
+def catalogue_key(url, configured=""):
+    """The key a catalogue must be signed with: the collection's own for the default address, the configured one
+    for another address, or None (unsigned) for another address without one."""
+    if configured:
+        return configured.strip()
+    return CATALOGUE_KEY if url == DEFAULT_CATALOGUE else None
+
+
+def verify_signature(raw, signature, key):
+    """Check an Ed25519 signature (base64) of raw with a public key (base64, 32 bytes). Raises PackError."""
+    import base64
+    try:
+        from cryptography.exceptions import InvalidSignature
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+    except ImportError:
+        raise PackError("can't check the catalogue's signature: the python3-cryptography package is missing")
+    try:
+        public = Ed25519PublicKey.from_public_bytes(base64.b64decode(key, validate=True))
+        public.verify(base64.b64decode(signature.strip(), validate=True), raw)
+    except (InvalidSignature, ValueError, TypeError):
+        raise PackError("the catalogue's signature doesn't match: it wasn't published by the collection")
+
+
+def read_catalogue(url, timeout=30, key="default"):
+    """The packs a catalogue offers, each with an absolute "url". Entries that don't look right are skipped.
+    key: the public key its signature must match ("default": catalogue_key(url); None: no signature needed)."""
+    import urllib.error
     import urllib.parse
     import urllib.request
+    if key == "default":
+        key = catalogue_key(url)
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "application/json"})
     with urllib.request.urlopen(req, timeout=timeout) as response:
         raw = response.read(MAX_CATALOGUE + 1)
     if len(raw) > MAX_CATALOGUE:
         raise PackError("the catalogue is implausibly large")
+    if key:
+        req = urllib.request.Request(url + SIGNATURE_SUFFIX, headers={"User-Agent": USER_AGENT})
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as response:
+                signature = response.read(1024).decode("ascii", "replace")
+        except urllib.error.HTTPError as exc:
+            raise PackError(f"the catalogue isn't signed ({exc.code} for {url + SIGNATURE_SUFFIX})")
+        verify_signature(raw, signature, key)
     try:
         data = json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, ValueError):
@@ -608,14 +658,19 @@ def installed(packs_root):
     return out
 
 
-def catalogue_status(catalogue, packs_root):
-    """Each catalogue entry with "state": new, installed, update (a newer version), or taken (one of your own
-    packs uses the id), and "installedVersion"."""
+def catalogue_status(catalogue, packs_root, this_bothy="installed"):
+    """Each catalogue entry with "state": new, installed, update (a newer version), taken (one of your own
+    packs uses the id) or newer (it needs a newer Bothy than this one: its "minBothy"), and "installedVersion"."""
     have = installed(packs_root)
+    if this_bothy == "installed":
+        this_bothy = bothy_version()
     out = []
     for entry in catalogue["packs"]:
         mine = have.get(entry["id"])
-        if not mine:
+        needs = version_key(entry.get("minBothy")) if entry.get("minBothy") else None
+        if needs and this_bothy and needs > this_bothy and not (mine and not (mine.get("origin") or {}).get("catalogue")):
+            state = "newer"
+        elif not mine:
             state = "new"
         elif not (mine.get("origin") or {}).get("catalogue"):
             state = "taken"

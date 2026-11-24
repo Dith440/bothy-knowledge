@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 """Builds what decks download: one pack file per pack, and catalogue.json listing them.
 
-    python3 tools/build.py [OUT_DIR]        (default: dist/)
+    python3 tools/build.py [OUT_DIR] [--require-signature]        (default: dist/)
+
+With CATALOGUE_SIGNING_KEY set (the collection's Ed25519 private key, base64; a GitHub secret), it also writes
+catalogue.json.sig: Bothy refuses the collection's catalogue without a signature that matches the public key it
+ships with. --require-signature (the publish workflow) stops when the key is missing instead of publishing
+an unsigned catalogue.
 
 Pack files are reproducible: the same pack always gives the same file, byte for byte, so its SHA-256 in the
 catalogue only changes when the pack does. A small index.html lists the packs for people.
@@ -47,8 +52,23 @@ def sha256(path):
     return h.hexdigest()
 
 
+def sign(out, private_key):
+    """Write catalogue.json.sig: the Ed25519 signature of catalogue.json's exact bytes, in base64."""
+    import base64
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    key = Ed25519PrivateKey.from_private_bytes(base64.b64decode(private_key.strip(), validate=True))
+    with open(os.path.join(out, "catalogue.json"), "rb") as fh:
+        raw = fh.read()
+    with open(os.path.join(out, "catalogue.json.sig"), "w", encoding="ascii", newline="\n") as fh:
+        fh.write(base64.b64encode(key.sign(raw)).decode() + "\n")
+    public = key.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
+    print(f"Signed catalogue.json (public key {base64.b64encode(public).decode()})")
+
+
 def main():
-    out = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, "dist"))
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    out = os.path.abspath(args[0] if args else os.path.join(ROOT, "dist"))
     os.makedirs(os.path.join(out, "packs"), exist_ok=True)
     entries = []
     for kind in KINDS:
@@ -66,6 +86,8 @@ def main():
                      "version": meta.get("version"), "licence": meta.get("licence"), "authors": meta.get("authors", []),
                      "pictures": summary["pictures"], "reviewed": summary.get("reviewed", 0),
                      "file": f"packs/{file_name}", "size": os.path.getsize(target), "sha256": sha256(target)}
+            if meta.get("minBothy"):
+                entry["minBothy"] = meta["minBothy"]  # older Bothy versions show it as "needs a newer Bothy"
             if kind == "knowledge":
                 entry.update({"guides": summary["guides"], "shelves": meta.get("categoryOrder", [])})
             else:
@@ -92,6 +114,12 @@ def main():
             f"<th>Version</th><th>Licence</th></tr>{rows}</table>")
     with open(os.path.join(out, "index.html"), "w", encoding="utf-8", newline="\n") as fh:
         fh.write(page)
+    key = os.environ.get("CATALOGUE_SIGNING_KEY", "")
+    if key.strip():
+        sign(out, key)
+    elif "--require-signature" in sys.argv:
+        print("CATALOGUE_SIGNING_KEY isn't set: Bothy would refuse an unsigned catalogue, so nothing is published.")
+        return 1
     print(f"Built {len(entries)} packs into {out}")
     return 0
 

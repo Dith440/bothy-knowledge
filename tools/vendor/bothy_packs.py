@@ -872,8 +872,9 @@ def _build(packs_root, out_dir):
             if meta.get("id") != name:
                 raise PackError(f"the folder name must match the pack id ({meta.get('id')})")
             (read_pack if kind == "knowledge" else read_medical_pack)(pack_dir)  # parses everything once
-            # Your own packs come first, so where a community pack has the same guide, yours is shown.
-            found[kind].append((bool((meta.get("origin") or {}).get("catalogue")), name, pack_dir))
+            # Your own packs come first, so where a community pack or one that came with Bothy has the same
+            # guide or protocol, yours is shown.
+            found[kind].append((bool((meta.get("origin") or {}).get("catalogue") or (meta.get("origin") or {}).get("bundled")), name, pack_dir))
             report["packs"].append({"id": name, "kind": kind, "ok": True})
         except (OSError, ValueError, KeyError, PackError) as exc:
             if not os.path.isfile(os.path.join(pack_dir, "pack.json")):
