@@ -1,0 +1,40 @@
+{
+ "id": "guide-550683469c22f3c3246bae14fafda8f7",
+ "fieldOrder": [
+  "id",
+  "categoryId",
+  "sectionId",
+  "risk",
+  "title",
+  "summary",
+  "outcome",
+  "time",
+  "level",
+  "tools",
+  "steps",
+  "checks",
+  "mistakes",
+  "warning",
+  "notes",
+  "layout",
+  "parameters",
+  "commands",
+  "figures",
+  "sourceRefs",
+  "externalRefs"
+ ],
+ "sectionId": "site-selection",
+ "categoryId": "shelter",
+ "risk": "normal",
+ "layout": [],
+ "figures": [],
+ "sourceRefs": [],
+ "externalRefs": [],
+ "commands": [],
+ "actions": [],
+ "warningOrder": [
+  "title",
+  "text"
+ ],
+ "parametersOrder": []
+}

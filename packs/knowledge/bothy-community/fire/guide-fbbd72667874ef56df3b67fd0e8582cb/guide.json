@@ -1,0 +1,40 @@
+{
+ "id": "guide-fbbd72667874ef56df3b67fd0e8582cb",
+ "fieldOrder": [
+  "id",
+  "categoryId",
+  "sectionId",
+  "risk",
+  "title",
+  "summary",
+  "outcome",
+  "time",
+  "level",
+  "tools",
+  "steps",
+  "checks",
+  "mistakes",
+  "warning",
+  "notes",
+  "layout",
+  "parameters",
+  "commands",
+  "figures",
+  "sourceRefs",
+  "externalRefs"
+ ],
+ "sectionId": "tinder",
+ "categoryId": "fire",
+ "risk": "normal",
+ "layout": [],
+ "figures": [],
+ "sourceRefs": [],
+ "externalRefs": [],
+ "commands": [],
+ "actions": [],
+ "warningOrder": [
+  "title",
+  "text"
+ ],
+ "parametersOrder": []
+}

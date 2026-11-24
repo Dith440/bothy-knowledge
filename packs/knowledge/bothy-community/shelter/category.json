@@ -1,0 +1,21 @@
+{
+ "id": "shelter",
+ "intro": {
+  "de": "",
+  "en": ""
+ },
+ "sections": {},
+ "sourceIds": [],
+ "fieldOrder": [
+  "id",
+  "intro",
+  "sections",
+  "guides",
+  "lexicon",
+  "references",
+  "sourceIds"
+ ],
+ "guideOrder": [
+  "guide-550683469c22f3c3246bae14fafda8f7"
+ ]
+}

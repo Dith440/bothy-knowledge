@@ -1,0 +1,28 @@
+{
+ "id": "water",
+ "intro": {
+  "de": "",
+  "en": ""
+ },
+ "sections": {
+  "c-testsection-vict": {
+   "title": {
+    "de": "",
+    "en": "testsection"
+   }
+  }
+ },
+ "sourceIds": [],
+ "fieldOrder": [
+  "id",
+  "intro",
+  "sections",
+  "guides",
+  "lexicon",
+  "references",
+  "sourceIds"
+ ],
+ "guideOrder": [
+  "guide-f9592701fa7dfd9d649f7498d7a0c58c"
+ ]
+}

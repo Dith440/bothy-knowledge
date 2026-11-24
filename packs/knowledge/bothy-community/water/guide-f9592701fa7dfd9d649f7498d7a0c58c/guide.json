@@ -1,0 +1,40 @@
+{
+ "id": "guide-f9592701fa7dfd9d649f7498d7a0c58c",
+ "fieldOrder": [
+  "id",
+  "categoryId",
+  "sectionId",
+  "risk",
+  "title",
+  "summary",
+  "outcome",
+  "time",
+  "level",
+  "tools",
+  "steps",
+  "checks",
+  "mistakes",
+  "warning",
+  "notes",
+  "layout",
+  "parameters",
+  "commands",
+  "figures",
+  "sourceRefs",
+  "externalRefs"
+ ],
+ "sectionId": "c-testsection-vict",
+ "categoryId": "water",
+ "risk": "normal",
+ "layout": [],
+ "figures": [],
+ "sourceRefs": [],
+ "externalRefs": [],
+ "commands": [],
+ "actions": [],
+ "warningOrder": [
+  "title",
+  "text"
+ ],
+ "parametersOrder": []
+}

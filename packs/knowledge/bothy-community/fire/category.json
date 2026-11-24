@@ -1,0 +1,21 @@
+{
+ "id": "fire",
+ "intro": {
+  "de": "",
+  "en": ""
+ },
+ "sections": {},
+ "sourceIds": [],
+ "fieldOrder": [
+  "id",
+  "intro",
+  "sections",
+  "guides",
+  "lexicon",
+  "references",
+  "sourceIds"
+ ],
+ "guideOrder": [
+  "guide-fbbd72667874ef56df3b67fd0e8582cb"
+ ]
+}
