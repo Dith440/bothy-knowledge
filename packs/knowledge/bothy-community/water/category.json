@@ -1,0 +1,21 @@
+{
+ "id": "water",
+ "intro": {
+  "de": "",
+  "en": ""
+ },
+ "sections": {},
+ "sourceIds": [],
+ "fieldOrder": [
+  "id",
+  "intro",
+  "sections",
+  "guides",
+  "lexicon",
+  "references",
+  "sourceIds"
+ ],
+ "guideOrder": [
+  "guide-daca63a72e6d0293169168cd852828b0"
+ ]
+}
