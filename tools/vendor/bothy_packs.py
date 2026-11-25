@@ -47,7 +47,14 @@ HEADING_KEY = {title: key for lang in HEADINGS.values() for key, title in lang.i
 FRONT_FIELDS = ("title", "summary", "outcome", "time", "level")
 # What an entry is (BOTHY_KNOWLEDGE_ENTRIES_V1). Only a starting point and a label: any entry may hold any module.
 # Entries without a kind are how-tos, which is what every older guide is.
-KINDS = ("howto", "explainer", "profile", "comparison", "reference", "report")
+KINDS = ("howto", "explainer", "profile", "reference")
+# Kinds there were for a short while (Bothy 0.1.2-dev): entries that name them read as the nearest kind there is.
+RETIRED_KINDS = {"comparison": "reference", "report": "explainer"}
+
+
+def entry_kind(kind):
+    """The kind an entry is shown and stored as (a retired kind becomes the nearest one there is)."""
+    return RETIRED_KINDS.get(kind, kind)
 CALLOUT_TYPES = ("info", "tip", "caution", "danger")
 TABLE_COLUMNS, TABLE_ROWS = 8, 60
 ENTRY_KEYS = ("facts", "factSheets", "tables", "callouts", "links")
@@ -153,6 +160,8 @@ def _item_with_lines(first, text, where):
 
 def guide_to_files(guide, image_name):
     """Split one guide into (guide.json structure, {lang: markdown}). image_name maps a figure src to a file name."""
+    if "kind" in guide:
+        guide = {**guide, "kind": entry_kind(guide["kind"])}
     structure = {"id": guide["id"], "fieldOrder": list(guide)}
     for key in ("sectionId", "categoryId", "risk", "layout", "kind"):  # layout: the order and width of the page's modules
         if key in guide:
@@ -341,6 +350,8 @@ def files_to_guide(structure, texts, figure_src):
     for key in ("sectionId", "categoryId", "risk", "layout", "kind"):
         if key in structure:
             built[key] = structure[key]
+    if "kind" in built:
+        built["kind"] = entry_kind(built["kind"])
     built["id"] = structure["id"]
     for key in FRONT_FIELDS:
         if key in parsed["en"][0]:
