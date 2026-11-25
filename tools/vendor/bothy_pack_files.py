@@ -331,6 +331,9 @@ def export(pack_dir, out_dir, *, categories=None, guides=None, shareable=False, 
         new_meta.pop("readOnly", None)
         new_meta.pop("origin", None)
         new_meta["exported"] = _now()
+        if meta.get("kind") == "knowledge" and bothy_packs.needs_entries(dest) \
+                and version_key(new_meta.get("minBothy")) < version_key(bothy_packs.ENTRIES_MIN_BOTHY):
+            new_meta["minBothy"] = bothy_packs.ENTRIES_MIN_BOTHY  # older Bothys can't read kinds and the new modules
         if shareable:
             new_meta["private"] = False
             new_meta["distribution"] = "shared"

@@ -35,14 +35,43 @@ HEADINGS = {
     "en": {"figures": "Figures", "tools": "You need", "steps": "Steps", "checks": "Check",
            "mistakes": "Common mistakes", "sourceRefs": "Source notes", "externalRefs": "Further reading",
            "parameters": "Parameters", "commands": "Commands", "actions": "Actions", "warning": "Warning",
-           "notes": "Notes"},
+           "notes": "Notes", "facts": "Quick facts", "factSheets": "Key facts", "tables": "Tables",
+           "callouts": "Callouts", "links": "See also"},
     "de": {"figures": "Abbildungen", "tools": "Du brauchst", "steps": "Schritte", "checks": "Prüfen",
            "mistakes": "Häufige Fehler", "sourceRefs": "Quellenhinweise", "externalRefs": "Weiterführend",
            "parameters": "Parameter", "commands": "Befehle", "actions": "Aktionen", "warning": "Warnung",
-           "notes": "Notizen"},
+           "notes": "Notizen", "facts": "Kurzinfo", "factSheets": "Steckbrief", "tables": "Tabellen",
+           "callouts": "Hinweise", "links": "Siehe auch"},
 }
 HEADING_KEY = {title: key for lang in HEADINGS.values() for key, title in lang.items()}
 FRONT_FIELDS = ("title", "summary", "outcome", "time", "level")
+# What an entry is (BOTHY_KNOWLEDGE_ENTRIES_V1). Only a starting point and a label: any entry may hold any module.
+# Entries without a kind are how-tos, which is what every older guide is.
+KINDS = ("howto", "explainer", "profile", "comparison", "reference", "report")
+CALLOUT_TYPES = ("info", "tip", "caution", "danger")
+TABLE_COLUMNS, TABLE_ROWS = 8, 60
+ENTRY_KEYS = ("facts", "factSheets", "tables", "callouts", "links")
+# The first Bothy that reads kinds and these modules. A pack that uses them names it as its minBothy, so older
+# Bothys list the pack as needing a newer Bothy instead of failing on it.
+ENTRIES_MIN_BOTHY = "0.1.2"
+
+
+def uses_entry_parts(guide):
+    """Whether a guide (or its guide.json) has a kind or one of the modules older Bothys can't read."""
+    keys = set(guide.get("fieldOrder", guide))
+    return "kind" in guide or bool(keys & set(ENTRY_KEYS))
+
+
+def needs_entries(pack_dir):
+    """Whether any guide in a knowledge pack folder uses entry parts (so the pack needs ENTRIES_MIN_BOTHY)."""
+    for root, _dirs, files in os.walk(pack_dir):
+        if "guide.json" in files:
+            try:
+                if uses_entry_parts(_read_json(os.path.join(root, "guide.json"))):
+                    return True
+            except (OSError, ValueError):
+                continue
+    return False
 
 
 class PackError(Exception):
@@ -76,6 +105,43 @@ def _lines(text, where):
     return [_one_line(lines[0], where)] + lines[1:]
 
 
+def _label(text, where):
+    """A label or heading written as **text**: one line, and without ** inside."""
+    if "**" in text:
+        raise PackError(f"{where}: a heading or label can't contain **")
+    return _one_line(text, where)
+
+
+def _fact(label, value, where):
+    """'**Label:** value', the form of a quick fact and of a key-facts row."""
+    value = _one_line(value, where)
+    return f"**{_label(label, where)}:**" + (f" {value}" if value else "")
+
+
+def _parse_fact(text, where):
+    m = re.match(r"^\*\*(.*?):\*\*(?: (.*))?$", text)
+    if not m:
+        raise PackError(f"{where}: a fact must be written **Label:** value")
+    return m.group(1), m.group(2) or ""
+
+
+def _cells(cells, where):
+    out = []
+    for cell in cells:
+        if "\n" in cell:
+            raise PackError(f"{where}: a table cell has one line")
+        out.append(cell.strip().replace("|", "\\|"))
+    return "| " + " | ".join(out) + " |"
+
+
+def _parse_cells(line, where):
+    line = line.strip()
+    if not (line.startswith("|") and line.endswith("|")):
+        raise PackError(f"{where}: a table row starts and ends with |")
+    parts = re.split(r"(?<!\\)\|", line[1:-1])
+    return [part.strip().replace("\\|", "|") for part in parts]
+
+
 def _item_with_lines(first, text, where):
     """'N. **Title** first line' and the text's further lines indented under it (Markdown list continuation)."""
     lines = _lines(text, where)
@@ -88,9 +154,25 @@ def _item_with_lines(first, text, where):
 def guide_to_files(guide, image_name):
     """Split one guide into (guide.json structure, {lang: markdown}). image_name maps a figure src to a file name."""
     structure = {"id": guide["id"], "fieldOrder": list(guide)}
-    for key in ("sectionId", "categoryId", "risk", "layout"):  # layout: the order and width of the page's modules
+    for key in ("sectionId", "categoryId", "risk", "layout", "kind"):  # layout: the order and width of the page's modules
         if key in guide:
             structure[key] = guide[key]
+    if "kind" in guide and guide["kind"] not in KINDS:
+        raise PackError(f"{guide['id']}: unknown kind of entry {guide['kind']!r}")
+    # Callouts keep their type here and links their targets; their texts are in the Markdown.
+    if "callouts" in guide:
+        for c in guide["callouts"]:
+            if c.get("type") not in CALLOUT_TYPES:
+                raise PackError(f"{guide['id']}: unknown type of callout {c.get('type')!r}")
+        structure["callouts"] = [{"type": c["type"]} for c in guide["callouts"]]
+    if "links" in guide:
+        structure["links"] = [{"items": [{"to": item["to"]} for item in block["items"]]} for block in guide["links"]]
+    if "tables" in guide:
+        for t in guide["tables"]:
+            width = len(t["header"])
+            if not 1 <= width <= TABLE_COLUMNS or len(t["rows"]) > TABLE_ROWS or any(len(r) != width for r in t["rows"]):
+                raise PackError(f"{guide['id']}: a table has 1 to {TABLE_COLUMNS} columns and up to {TABLE_ROWS} rows, "
+                                "each row as many cells as the header")
     structure["figures"] = []
     for fig in guide.get("figures", []):
         item = {k: v for k, v in fig.items() if k not in ("alt", "legend")}
@@ -152,6 +234,26 @@ def guide_to_files(guide, image_name):
                           for line in _item_with_lines(f"{i}. **{_one_line(s['title'][lang], where)}**", s["body"][lang], where)])
         section("notes", [line for i, n in enumerate(guide.get("notes", []), 1)
                           for line in _item_with_lines(f"{i}. **{_one_line(n['title'][lang], where)}**", n["text"][lang], where)])
+        section("facts", [f"- {_fact(f['label'][lang], f['value'][lang], where)}" for f in guide.get("facts", [])])
+        sheets = []
+        for i, sheet in enumerate(guide.get("factSheets", []), 1):
+            sheets.append(f"{i}. **{_label(sheet['title'][lang], where)}**")
+            sheets += [f"   - {_fact(r['label'][lang], r['value'][lang], where)}" for r in sheet["rows"]]
+        section("factSheets", sheets)
+        tables = []
+        for i, table in enumerate(guide.get("tables", []), 1):
+            tables.append(f"{i}. **{_label(table['title'][lang], where)}**")
+            tables.append("   " + _cells([c[lang] for c in table["header"]], where))
+            tables.append("   " + "| " + " | ".join("---" for _ in table["header"]) + " |")
+            tables += ["   " + _cells([c[lang] for c in row], where) for row in table["rows"]]
+        section("tables", tables)
+        section("callouts", [line for i, c in enumerate(guide.get("callouts", []), 1)
+                             for line in _item_with_lines(f"{i}. **{_label(c['title'][lang], where)}**", c["text"][lang], where)])
+        links = []
+        for i, block in enumerate(guide.get("links", []), 1):
+            links.append(f"{i}. **{_label(block['title'][lang], where)}**")
+            links += [f"   - {_one_line(item['label'][lang], where)}" for item in block["items"]]
+        section("links", links)
         section("checks", [f"- {_one_line(t[lang], where)}" for t in guide.get("checks", [])])
         section("mistakes", [f"- {_one_line(t[lang], where)}" for t in guide.get("mistakes", [])])
         section("sourceRefs", [f"{i}. {_one_line(r['note'][lang], where)}" for i, r in enumerate(guide.get("sourceRefs", []), 1)])
@@ -236,7 +338,7 @@ def files_to_guide(structure, texts, figure_src):
     parsed = {lang: _parse_markdown(texts[lang]) for lang in LANGS}
     pair = lambda get: {lang: get(lang) for lang in LANGS}
     built = {}
-    for key in ("sectionId", "categoryId", "risk", "layout"):
+    for key in ("sectionId", "categoryId", "risk", "layout", "kind"):
         if key in structure:
             built[key] = structure[key]
     built["id"] = structure["id"]
@@ -304,6 +406,67 @@ def files_to_guide(structure, texts, figure_src):
             values = dict(meta, **out[i])
             out[i] = {k: values[k] for k in meta["fieldOrder"]}
         built["notes"] = out
+    where = structure["id"]
+    if "facts" in structure["fieldOrder"]:
+        facts = {l: [_parse_fact(t, where) for t in _bullets(parsed[l][1].get("facts", []))] for l in LANGS}
+        built["facts"] = [{"label": {l: facts[l][i][0] for l in LANGS}, "value": {l: facts[l][i][1] for l in LANGS}}
+                          for i in range(len(facts["en"]))]
+
+    def heading_of(text):
+        m = re.match(r"^\*\*(.*)\*\*$", text)
+        if not m:
+            raise PackError(f"{where}: an item must start with **Heading**")
+        return m.group(1)
+
+    if "factSheets" in structure["fieldOrder"]:
+        sheets = numbered("factSheets")
+        out = []
+        for i in range(len(sheets["en"])):
+            rows = {l: [_parse_fact(r, where) for r in sheets[l][i][1]] for l in LANGS}
+            out.append({"title": {l: heading_of(sheets[l][i][0]) for l in LANGS},
+                        "rows": [{"label": {l: rows[l][j][0] for l in LANGS}, "value": {l: rows[l][j][1] for l in LANGS}}
+                                 for j in range(len(rows["en"]))]})
+        built["factSheets"] = out
+    if "tables" in structure["fieldOrder"]:
+        def tables_of(lines):
+            items = []
+            for line in lines:
+                m = re.match(r"^\d+\. (.*)$", line)
+                if m:
+                    items.append([heading_of(m.group(1)), []])
+                elif line.startswith("   |") and items:
+                    items[-1][1].append(_parse_cells(line[3:], where))
+                else:
+                    raise PackError(f"unexpected line in a table: {line}")
+            return items
+        tabs = {l: tables_of(parsed[l][1].get("tables", [])) for l in LANGS}
+        out = []
+        for i in range(len(tabs["en"])):
+            rows = {l: tabs[l][i][1] for l in LANGS}
+            header = rows["en"][0]
+            out.append({"title": {l: tabs[l][i][0] for l in LANGS},
+                        "header": [{l: rows[l][0][c] for l in LANGS} for c in range(len(header))],
+                        "rows": [[{l: rows[l][r][c] for l in LANGS} for c in range(len(header))]
+                                 for r in range(2, len(rows["en"]))]})
+        built["tables"] = out
+    if "callouts" in structure["fieldOrder"]:
+        texts_ = text_items("callouts")
+        out = []
+        for i, meta in enumerate(structure.get("callouts", [])):
+            title, text = {}, {}
+            for l in LANGS:
+                m = re.match(r"^\*\*(.*?)\*\* (.*)$", texts_[l][i], re.S) or re.match(r"^\*\*(.*?)\*\*()$", texts_[l][i], re.S)
+                title[l], text[l] = m.group(1), m.group(2)
+            out.append({"type": meta["type"], "title": title, "text": text})
+        built["callouts"] = out
+    if "links" in structure["fieldOrder"]:
+        blocks = numbered("links")
+        out = []
+        for i, meta in enumerate(structure.get("links", [])):
+            out.append({"title": {l: heading_of(blocks[l][i][0]) for l in LANGS},
+                        "items": [{"to": item["to"], "label": {l: blocks[l][i][1][j] for l in LANGS}}
+                                  for j, item in enumerate(meta["items"])]})
+        built["links"] = out
     for key in ("sourceRefs", "externalRefs"):
         if key in structure["fieldOrder"]:
             notes = numbered(key)
